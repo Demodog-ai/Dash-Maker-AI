@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CuisineFlow | Premium Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #f97316;
+            --glass: rgba(255, 255, 255, 0.7);
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #f4f7fa; 
+            background-image: radial-gradient(at 0% 0%, rgba(249, 115, 22, 0.05) 0px, transparent 50%), 
+                              radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.05) 0px, transparent 50%);
+        }
+
+        .glass { background: var(--glass); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .sidebar-link.active { background: white; color: var(--primary); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .status-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
+
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-72 bg-slate-50/50 backdrop-blur-xl border-r border-slate-200/60 p-6 flex flex-col fixed h-full z-30">
+            <div class="flex items-center gap-3 mb-12 px-2">
+                <div class="bg-orange-500 p-2.5 rounded-2xl shadow-lg shadow-orange-500/20">
+                    <i data-lucide="chef-hat" class="w-6 h-6 text-white"></i>
+                </div>
+                <h1 class="text-xl font-extrabold tracking-tight text-slate-900">Cuisine<span class="text-orange-500">Flow</span></h1>
+            </div>
+
+            <nav class="space-y-2 flex-grow">
+                <button onclick="switchTab('overview')" class="sidebar-link active w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-500 font-bold transition-all" data-tab="overview">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Overview
+                </button>
+                <button onclick="switchTab('orders')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-500 font-bold transition-all" data-tab="orders">
+                    <i data-lucide="shopping-bag" class="w-5 h-5"></i> Live Orders
+                </button>
+                <button onclick="switchTab('analytics')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-500 font-bold transition-all" data-tab="analytics">
+                    <i data-lucide="bar-chart-big" class="w-5 h-5"></i> Analytics
+                </button>
+            </nav>
+
+            <div class="p-4 bg-white/50 rounded-3xl border border-white mt-auto">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-600">AD</div>
+                    <div>
+                        <p class="text-sm font-bold">Admin Panel</p>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Premium Access</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="ml-72 flex-grow p-8">
+            <!-- Header -->
+            <header class="flex justify-between items-center mb-10">
+                <div>
+                    <h2 id="view-title" class="text-3xl font-extrabold text-slate-900 tracking-tight">System Overview</h2>
+                    <p class="text-slate-500 font-medium">Real-time restaurant intelligence</p>
+                </div>
+                <div class="flex gap-4">
+                    <div class="bg-white border border-slate-200 px-4 py-2 rounded-2xl flex items-center gap-3 shadow-sm">
+                        <div class="status-pulse bg-emerald-500"></div>
+                        <span id="last-sync" class="text-xs font-bold text-slate-500 tracking-wide uppercase">Syncing...</span>
+                    </div>
+                    <button onclick="fetchOrders()" class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold text-sm shadow-xl shadow-orange-500/20 flex items-center gap-2 transition-all">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Data
+                    </button>
+                </div>
+            </header>
+
+            <!-- TAB: OVERVIEW -->
+            <section id="overview" class="tab-content active">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                    <div class="glass p-7 rounded-[2.5rem] shadow-sm">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-blue-100 text-blue-600 p-3 rounded-2xl"><i data-lucide="shopping-cart" class="w-6 h-6"></i></div>
+                        </div>
+                        <p class="text-slate-500 font-bold text-xs uppercase tracking-widest">Orders Today</p>
+                        <h3 id="stat-total" class="text-4xl font-extrabold mt-1">0</h3>
+                    </div>
+                    <div class="glass p-7 rounded-[2.5rem] shadow-sm">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-emerald-100 text-emerald-600 p-3 rounded-2xl"><i data-lucide="indian-rupee" class="w-6 h-6"></i></div>
+                        </div>
+                        <p class="text-slate-500 font-bold text-xs uppercase tracking-widest">Revenue Today</p>
+                        <h3 id="stat-revenue" class="text-4xl font-extrabold mt-1">₹0</h3>
+                    </div>
+                    <div class="glass p-7 rounded-[2.5rem] shadow-sm">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-orange-100 text-orange-600 p-3 rounded-2xl"><i data-lucide="clock" class="w-6 h-6"></i></div>
+                        </div>
+                        <p class="text-slate-500 font-bold text-xs uppercase tracking-widest">Pending Prep</p>
+                        <h3 id="stat-pending" class="text-4xl font-extrabold mt-1 text-orange-600">0</h3>
+                    </div>
+                    <div class="glass p-7 rounded-[2.5rem] shadow-sm">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="bg-purple-100 text-purple-600 p-3 rounded-2xl"><i data-lucide="check-circle" class="w-6 h-6"></i></div>
+                        </div>
+                        <p class="text-slate-500 font-bold text-xs uppercase tracking-widest">Completed</p>
+                        <h3 id="stat-completed" class="text-4xl font-extrabold mt-1 text-purple-600">0</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-[2.5rem] border border-slate-200/60 p-8 shadow-sm">
+                    <h3 class="text-xl font-bold mb-6">Recent Activity</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">
+                                    <th class="pb-4">Table</th>
+                                    <th class="pb-4">Dish</th>
+                                    <th class="pb-4">Time</th>
+                                    <th class="pb-4 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-tbody" class="divide-y divide-slate-50"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: ORDERS -->
+            <section id="orders" class="tab-content">
+                <div class="bg-white rounded-[2.5rem] border border-slate-200/60 overflow-hidden shadow-sm">
+                    <div class="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div class="relative w-full md:w-96">
+                            <i data-lucide="search" class="w-4 h-4 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="orderSearch" oninput="renderOrdersTable()" placeholder="Search table, name, or dish..." class="w-full pl-12 pr-6 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-orange-500/20 outline-none transition-all font-medium">
+                        </div>
+                        <div class="flex gap-4 w-full md:w-auto">
+                            <select id="filterStatus" onchange="renderOrdersTable()" class="bg-slate-50 border-none rounded-2xl px-6 py-4 font-bold outline-none text-slate-600">
+                                <option value="all">All Status</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50/50 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+                                <tr>
+                                    <th class="px-8 py-5">Tbl</th>
+                                    <th class="px-8 py-5">Customer</th>
+                                    <th class="px-8 py-5">Dish Details</th>
+                                    <th class="px-8 py-5">Contact</th>
+                                    <th class="px-8 py-5">Instruction</th>
+                                    <th class="px-8 py-5">Total</th>
+                                    <th class="px-8 py-5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="full-tbody" class="divide-y divide-slate-100 font-medium"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: ANALYTICS -->
+            <section id="analytics" class="tab-content">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-7 rounded-[2rem] border border-slate-200/60 shadow-sm">
+                        <p class="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Total Sales Today</p>
+                        <h4 id="sale-daily" class="text-2xl font-black">₹0</h4>
+                    </div>
+                    <div class="bg-white p-7 rounded-[2rem] border border-slate-200/60 shadow-sm">
+                        <p class="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Total Sales Weekly</p>
+                        <h4 id="sale-weekly" class="text-2xl font-black text-blue-600">₹0</h4>
+                    </div>
+                    <div class="bg-white p-7 rounded-[2rem] border border-slate-200/60 shadow-sm">
+                        <p class="text-slate-400 font-black text-[10px] uppercase tracking-widest mb-1">Total Sales Monthly</p>
+                        <h4 id="sale-monthly" class="text-2xl font-black text-emerald-600">₹0</h4>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Revenue Trends -->
+                    <div class="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
+                        <div class="flex justify-between items-center mb-8">
+                            <h4 class="font-bold text-lg">Revenue Trends (Daily)</h4>
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-orange-500"></span> Last 7 Days
+                            </div>
+                        </div>
+                        <canvas id="revChart" height="280"></canvas>
+                    </div>
+
+                    <!-- Most Selling Item -->
+                    <div class="bg-white p-8 rounded-[2.5rem] border border-slate-200/60 shadow-sm flex flex-col">
+                        <h4 class="font-bold text-lg mb-6">Most Selling Items</h4>
+                        <div id="top-selling-list" class="space-y-4 flex-grow">
+                            <!-- Items appear here -->
+                        </div>
+                        <div class="mt-8 pt-6 border-t border-slate-50">
+                            <canvas id="itemPieChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- BILL MODAL -->
+    <div id="bill-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[3rem] shadow-2xl overflow-hidden scale-95 transition-all">
+            <div id="bill-print-area" class="p-10 font-mono text-sm leading-relaxed">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-black font-sans uppercase">CuisineFlow</h2>
+                    <p class="text-[10px] opacity-50 font-sans tracking-widest mt-1">Gourmet Experience • Digital Bill</p>
+                    <div class="border-b border-dashed border-slate-300 my-6"></div>
+                    <div class="flex justify-between text-[11px] font-bold">
+                        <span id="bill-tbl">TABLE: 0</span>
+                        <span id="bill-dt">DATE: 00/00/00</span>
+                    </div>
+                </div>
+                <div id="bill-items" class="space-y-2 mb-8 border-b border-dashed border-slate-100 pb-6"></div>
+                <div class="space-y-1.5 font-sans">
+                    <div class="flex justify-between text-slate-500"><span>Subtotal</span><span id="bill-sub">₹0</span></div>
+                    <div class="flex justify-between text-slate-500"><span>GST (18%)</span><span id="bill-gst">₹0</span></div>
+                    <div class="flex justify-between text-slate-500"><span>Service Charge</span><span>₹50</span></div>
+                    <div class="border-t border-slate-100 mt-4 pt-4 flex justify-between text-xl font-extrabold">
+                        <span>Grand Total</span><span id="bill-grand">₹0</span>
+                    </div>
+                </div>
+                <div class="text-center mt-10 text-[9px] uppercase tracking-widest font-sans opacity-40">Visit again soon!</div>
+            </div>
+            <div class="p-8 pt-0 flex gap-3">
+                <button onclick="document.getElementById('bill-modal').classList.add('hidden')" class="flex-grow py-4 bg-slate-100 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancel</button>
+                <button onclick="downloadBill()" class="flex-grow py-4 bg-orange-500 text-white rounded-2xl font-bold shadow-lg shadow-orange-500/20 hover:bg-orange-600 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-8 py-4 rounded-3xl shadow-2xl font-bold text-sm translate-y-20 transition-all opacity-0"></div>
+
+    <script>
+        const API_URL = 'https://n8n.srv1234891.hstgr.cloud/webhook/dash';
+        let ordersData = [];
+        let charts = {};
+
+        lucide.createIcons();
+
+        function extract(obj, patterns) {
+            const keys = Object.keys(obj);
+            for (let p of patterns) {
+                const match = keys.find(k => k.toLowerCase().replace(/[^a-z]/g, '') === p.toLowerCase().replace(/[^a-z]/g, ''));
+                if (match) return obj[match];
+            }
+            return '—';
+        }
+
+        async function fetchOrders() {
+            try {
+                document.getElementById('last-sync').innerText = "Syncing...";
+                const res = await fetch(API_URL);
+                const raw = await res.json();
+                ordersData = Array.isArray(raw) ? raw : (raw.data || raw.orders || []);
+                
+                ordersData = ordersData.map(o => ({
+                    ...o,
+                    table: extract(o, ['table', 'tableno', 'tablenumber', 'tbl', 'tno']),
+                    name: extract(o, ['name', 'customer', 'customername', 'guest']),
+                    dish: extract(o, ['dish', 'items', 'itemlist', 'order']),
+                    contact: extract(o, ['contact', 'phone', 'mobile', 'cell']),
+                    instruction: extract(o, ['instruction', 'notes', 'note', 'request']),
+                    total: extract(o, ['total', 'totalprice', 'amount', 'price']),
+                    type: extract(o, ['type', 'ordertype', 'category']),
+                    status: o.status || 'Pending',
+                    time: o.timestamp || o.time || o['Order Time'] || new Date().toISOString()
+                }));
+
+                refreshUI();
+                document.getElementById('last-sync').innerText = "Live Connected";
+                showToast("Data Synchronized ✨");
+            } catch (err) {
+                document.getElementById('last-sync').innerText = "Sync Error";
+                showToast("Connection Error", "error");
+            }
+        }
+
+        function refreshUI() {
+            const todayStr = new Date().toLocaleDateString();
+            const todayOrders = ordersData.filter(o => new Date(o.time).toLocaleDateString() === todayStr);
+            
+            const totalRevToday = todayOrders.reduce((s, o) => s + (parseFloat(String(o.total).replace(/[^0-9.]/g, '')) || 0), 0);
+            
+            document.getElementById('stat-total').innerText = todayOrders.length;
+            document.getElementById('stat-revenue').innerText = `₹${totalRevToday.toLocaleString('en-IN')}`;
+            document.getElementById('stat-pending').innerText = ordersData.filter(o => o.status === 'Pending').length;
+            document.getElementById('stat-completed').innerText = ordersData.filter(o => o.status === 'Completed').length;
+
+            renderRecentTable();
+            renderOrdersTable();
+            if(document.getElementById('analytics').classList.contains('active')) updateAnalytics();
+        }
+
+        function renderRecentTable() {
+            const tbody = document.getElementById('recent-tbody');
+            tbody.innerHTML = ordersData.slice(0, 5).map(o => `
+                <tr class="hover:bg-slate-50/50 transition-all">
+                    <td class="py-4 font-bold text-slate-400">#${o.table}</td>
+                    <td class="py-4 font-semibold text-slate-800 truncate max-w-[200px]">${o.dish}</td>
+                    <td class="py-4 text-xs font-bold text-slate-400 uppercase tracking-widest">${new Date(o.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                    <td class="py-4 text-right font-extrabold text-slate-900">₹${String(o.total).replace(/[^0-9.]/g, '')}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderOrdersTable() {
+            const tbody = document.getElementById('full-tbody');
+            const search = document.getElementById('orderSearch').value.toLowerCase();
+            const filter = document.getElementById('filterStatus').value;
+
+            const filtered = ordersData.filter(o => {
+                const matchStr = `${o.table} ${o.name} ${o.dish}`.toLowerCase();
+                return matchStr.includes(search) && (filter === 'all' || o.status === filter);
+            });
+
+            tbody.innerHTML = filtered.map((o) => `
+                <tr class="hover:bg-slate-50/80 transition-all">
+                    <td class="px-8 py-6"><div class="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-xl font-black text-xs">${o.table}</div></td>
+                    <td class="px-8 py-6 text-slate-900 font-bold">${o.name}</td>
+                    <td class="px-8 py-6"><div class="text-sm font-semibold text-slate-600 leading-relaxed">${o.dish}</div></td>
+                    <td class="px-8 py-6 text-xs font-bold text-slate-400 font-mono">${o.contact}</td>
+                    <td class="px-8 py-6"><span class="text-[10px] italic bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg border border-orange-100 font-bold">${o.instruction}</span></td>
+                    <td class="px-8 py-6 font-black text-slate-900">₹${String(o.total).replace(/[^0-9.]/g, '')}</td>
+                    <td class="px-8 py-6 text-right">
+                        <div class="flex justify-end gap-3">
+                            <button onclick="toggleStatus(${ordersData.indexOf(o)})" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${o.status==='Completed'?'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20':'bg-amber-100 text-amber-700'}">
+                                ${o.status}
+                            </button>
+                            <button onclick="showBill(${ordersData.indexOf(o)})" class="p-2.5 bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white rounded-xl transition-all">
+                                <i data-lucide="receipt" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function toggleStatus(idx) {
+            ordersData[idx].status = ordersData[idx].status === 'Pending' ? 'Completed' : 'Pending';
+            refreshUI();
+        }
+
+        function showBill(idx) {
+            const o = ordersData[idx];
+            const raw = parseFloat(String(o.total).replace(/[^0-9.]/g, '')) || 0;
+            const gst = raw * 0.18;
+            const grand = raw + gst + 50;
+            document.getElementById('bill-tbl').innerText = `TABLE: ${o.table}`;
+            document.getElementById('bill-dt').innerText = `DATE: ${new Date().toLocaleDateString('en-IN')}`;
+            document.getElementById('bill-items').innerHTML = o.dish.split(',').map(item => `<div class="flex justify-between uppercase"><span>${item.trim()}</span><span>x1</span></div>`).join('');
+            document.getElementById('bill-sub').innerText = `₹${raw.toFixed(0)}`;
+            document.getElementById('bill-gst').innerText = `₹${gst.toFixed(0)}`;
+            document.getElementById('bill-grand').innerText = `₹${grand.toFixed(0)}`;
+            document.getElementById('bill-modal').classList.remove('hidden');
+        }
+
+        function downloadBill() {
+            const el = document.getElementById('bill-print-area');
+            html2pdf().from(el).set({ filename: 'Invoice.pdf', jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } }).save();
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelector(`[data-tab="${id}"]`).classList.add('active');
+            document.getElementById('view-title').innerText = id.charAt(0).toUpperCase() + id.slice(1);
+            if(id === 'analytics') updateAnalytics();
+        }
+
+        // --- NEW ANALYTICS LOGIC ---
+        function updateAnalytics() {
+            if (!ordersData.length) return;
+
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const weekStart = todayStart - (7 * 24 * 60 * 60 * 1000);
+            const monthStart = todayStart - (30 * 24 * 60 * 60 * 1000);
+
+            let dailyVal = 0, weeklyVal = 0, monthlyVal = 0;
+            const itemCounts = {};
+            const dailyTrends = {};
+
+            // Helper to get day string
+            const getDayKey = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+            // Initialize last 7 days for trend
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(todayStart - (i * 24 * 60 * 60 * 1000));
+                dailyTrends[getDayKey(date)] = 0;
+            }
+
+            ordersData.forEach(o => {
+                const val = parseFloat(String(o.total).replace(/[^0-9.]/g, '')) || 0;
+                const time = new Date(o.time).getTime();
+
+                if (time >= todayStart) dailyVal += val;
+                if (time >= weekStart) weeklyVal += val;
+                if (time >= monthStart) monthlyVal += val;
+
+                // Process Trends
+                const dayKey = getDayKey(o.time);
+                if (dailyTrends[dayKey] !== undefined) dailyTrends[dayKey] += val;
+
+                // Process Top Items
+                const dishes = o.dish.split(',');
+                dishes.forEach(d => {
+                    const clean = d.trim();
+                    if(clean && clean !== '—') itemCounts[clean] = (itemCounts[clean] || 0) + 1;
+                });
+            });
+
+            // Update Header Stats
+            document.getElementById('sale-daily').innerText = `₹${dailyVal.toLocaleString('en-IN')}`;
+            document.getElementById('sale-weekly').innerText = `₹${weeklyVal.toLocaleString('en-IN')}`;
+            document.getElementById('sale-monthly').innerText = `₹${monthlyVal.toLocaleString('en-IN')}`;
+
+            // Update Top Items List
+            const topItems = Object.entries(itemCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+            document.getElementById('top-selling-list').innerHTML = topItems.map(([name, count], idx) => `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-black">${idx+1}</span>
+                        <span class="text-sm font-bold text-slate-700">${name}</span>
+                    </div>
+                    <span class="text-xs font-black text-slate-400">${count} Orders</span>
+                </div>
+            `).join('');
+
+            renderAnalyticsCharts(dailyTrends, topItems);
+        }
+
+        function renderAnalyticsCharts(trendData, topItems) {
+            // Trend Chart
+            if(charts.rev) charts.rev.destroy();
+            charts.rev = new Chart(document.getElementById('revChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: Object.keys(trendData),
+                    datasets: [{
+                        data: Object.values(trendData),
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#fff'
+                    }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } }, x: { grid: { display: false } } } }
+            });
+
+            // Pie Chart
+            if(charts.pie) charts.pie.destroy();
+            charts.pie = new Chart(document.getElementById('itemPieChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: topItems.map(t => t[0]),
+                    datasets: [{
+                        data: topItems.map(t => t[1]),
+                        backgroundColor: ['#f97316', '#3b82f6', '#10b981', '#6366f1', '#f43f5e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { cutout: '70%', plugins: { legend: { display: false } } }
+            });
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.style.opacity = "1"; t.style.transform = "translateY(0) translateX(-50%)";
+            setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateY(20px) translateX(-50%)"; }, 3000);
+        }
+
+        window.onload = () => { fetchOrders(); setInterval(fetchOrders, 30000); };
+    </script>
+</body>
+</html>
